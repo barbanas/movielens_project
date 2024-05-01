@@ -1,0 +1,124 @@
+# Preparation of data sets (pre processing) & helper functions
+
+```{r load_common_objects_2,echo=FALSE,warning=FALSE}
+  
+suppressWarnings( source("common.R") )
+
+```
+
+
+## The MovieLens data set
+
+The data provided by MovieLens is a very large data collection of user ratings made for movies.
+
+The entire training data set (which is called "`edx`") is a table of `r nrow(edx)` observations (rows) and `r ncol(edx)` variables (columns).  The variables that consist the `edx` are the following:
+
+```{r variables_data_types,echo=FALSE}
+
+options(digits = 6)
+
+variables_data_types_table <- data.frame(
+  Variable = c("`userId`", 
+           "`movieId`", 
+           "`rating`", 
+           "`timestamp`", 
+           "`title`", 
+           "`genres`"),
+  
+  Data_type = c("Numerical", 
+             "Numerical",
+             "Numerical", 
+             "Numerical", 
+             "Character string", 
+             "Character string")
+)
+
+```
+
+```{r variables_table1,echo=FALSE, results='Variables and their data type'}
+
+ print(variables_data_types_table)
+  
+```
+
+The table below shows what each variable (column) stands for.
+
+```{r variables,echo=FALSE}
+
+suppressPackageStartupMessages(library(kableExtra)) # used for styling the kable tables
+
+options(digits = 6)
+
+variables_description_table <- data.frame(
+  Variable = c("`userId`", 
+           "`movieId`", 
+           "`rating`", 
+           "`timestamp`", 
+           "`title`", 
+           "`genres`"),
+  
+  Description = c("Each user has a unique ID (e.g. 1) that distinguises him/her from all the other users", 
+                  "Each movie has a unique ID (e.g. 122) that distinguises it from all the other movies",
+                  "Ratings on this data set are ranging from 0, 0.5, 1, 2, 3, 4, 4.5 and 5.0", 
+                  "Date and time stamp as (Unix epoch) when the rating was submitted (e.g. 838985046)", 
+                  "String for Movie title and, in parenthesis (), the year the movie first released",
+                  "String of characters that contains the genre(s) to which the movie belongs to (e.g. Drama, etc)"
+  )
+)
+```
+```{r variables_table2,echo=FALSE, results='Variables description'}
+
+ #print(variables_description_table)
+  t <- knitr::kable(variables_description_table, format = "markdown", col.width = 50) |>
+    kable_styling()
+  t |> column_spec(1, width = "100px")
+
+  
+```
+
+
+Each row of data is a single rating (see column `rating`) made by a specific user (`userId`) for a specific movie (`movieId`) on a specific point in time (`timestamp`).  Let's see some examples:
+
+```{r some_lines_from_the_train_set, echo=TRUE}
+
+  head(edx)
+
+```
+
+ ^[For more details about the data set you can read the `README.html` file included in the zip file of the MovieLens data.]
+
+
+## Pre processing of the data
+
+Any data wrangling should be done during the pre processing phase, before analysis takes place.
+
+We did not want to change the existing variables or add new variables to the data set (with the help of `mutate()`), although this is possible and it may have been useful in increasing the predicting accuracy of the algos.  
+
+For example, seeing how ratings are changing (or not) by the pass of time (from the first time the movie released) would be an interesting experiment.  
+
+Another idea would be to examine if the popularity effect (some movies are more popular than others, therefore are watched by far more people and the more people that watch a movie there is an increased probability that movie to get rated).
+
+However, adding more predictions (variables) not only increases the complexity of the calculations involved, but also the time needed to train the algos.  Additionally, which and how many predictors to add, how you may combine them together or separate them (to explore the presence or lack of certain effects), is almost, a never ending story.
+
+So, we decided to keep things simple at first and see if the variables in the original data set will be sufficient to predict with enough accuracy, before considering the possibility to add any new predictors.
+
+
+## Helper functions
+
+The Root Mean Square Error (or RMSE) will be used for evaluating how close our predictions are to the true values in the `final_holdout_test set`.
+
+We were already given the formula that calculates the RMSE.  Herein below we create a function that will use this formula and calculate the RSME for pairs of the true_ratings vs predicted_ratings.
+
+```{r RMSE_function,echo=TRUE}
+
+print(RMSE)
+
+```
+
+We also created a function that will print the table that will contain the results of our analysis as we go on.
+
+```{r show_kable_table_function,echo=TRUE}
+
+print(show_kable_table)
+
+```

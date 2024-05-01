@@ -1,0 +1,33 @@
+# Appendix
+
+
+## System Information
+
+
+For the shake of reproducability we include below the specifications of the machine (computer) that was used for carrying out our experiments and the successful completion of this project.  
+
+This project was carried out on a machine with the following hardware and software characteristics.  In case you try to reproduce the results and your R Studio is crashing, please make sure that your machine has these minimum hardware requirements (especially regarding the Total R.A.M Memory available).
+
+```{r echo=FALSE}
+
+library(parallel) 
+
+system_info <- Sys.info()
+number_of_cores <- detectCores()
+
+print(paste0("OS: ", system_info["sysname"], " version ", system_info["version"], " (release: ", system_info["release"], ")"))
+print(paste0("Virtual Machine: ", system_info["machine"]))
+print(paste0("CPU: 2 x Intel Xeon E5-2697 v2 @ 2.70 GHz (from which we used 1 processor with ", number_of_cores, " cores)"))
+print(paste0("Total R.A.M memory: 40 GB"))
+
+```
+
+## Session Info
+
+In the section below the version information of R, the OS and attached (or loaded packages) are showing.
+
+```{r echo=FALSE}
+
+sessionInfo()
+
+```

@@ -1,0 +1,44 @@
+# Conclusion
+
+
+```{r load_common_objects_7, echo=FALSE}
+  
+ source("common.R")
+
+```
+
+The project developed a recommender system based on limited MovieLens dataset (of 10 million user ratings given for movies). We did a data exploration of the data set and inspected the data visually.
+
+We set the minimum RSME and some unintelligent models as our baseline.
+
+Then we examined various models in order to see which performs best:
+
++ two naive models:
+    + Random guessing of rating
+    + Random guessing of rating (biased on the probability calculated by the prevalence)
++ three models based on the:
+    + Mean rating (`mu <- mean(edx$rating)`)
+    + Mean rating + movie bias (`mu + b_i`)
+    + Mean rating + movie bias + user bias (`mu + b_i + b_u`)
++ three Machine Learning Models from the `caret` package:
+    + a Support Vector Machine (SVM) Radial model
+    + a Random Forest (RF) model
+    + a Gradient Boosting Machine (GBM) model
++ a Matrix Factorization (MF) model from the `recommeder` package
+
+
+The last model proved to be the winner since it produced a RMSE of **`r RMSE_of_recommender_system `** on the `final_holdout_test`.
+
+## Ideas for further exploration
+
+Further improvement may be accomplished by:
+
++ altering the tuning parameters of the Matrix Factorization (MF) model
+
++ trying other methods included in the `recommender` package (like the User-Based Collaborative Filtering (UBCF), the Item-Based Collaborative Filtering (IBCF), etc)
+
++ trying any other Matrix Factorization (MF) model apart from those included in the `recommender` package
+
++ using Regularization (see page 645 of the "Introduction to Data Science book.pdf") and the tuning parameter $\lambda$ in order to penalize predictions that are based on small sample sizes. 
+
++ adding/producing any additional variables (predictors) in the train data set.  According to our experiments this is not always the case, as more predictors may improve or deteriorate the results.  However, it is a path worth exploring since in this report we only used the three variables (`userId, movieId, rating`) which were already provided in the original `edx` data set.

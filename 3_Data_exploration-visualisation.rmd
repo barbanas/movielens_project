@@ -1,0 +1,336 @@
+# Data exploration and visualisation
+
+
+```{r load_common_objects_3, echo=FALSE}
+  
+ source("common.R")
+
+```
+```{r why_I_need_to_reload_this_although_is_in_common_R_I_do_not_know1,echo=FALSE}
+min_rating <- 0.5
+max_rating <- 5
+
+```
+In this chapter we will check some facts about the `edx` data set which is the training data set of this project.  
+
+We are not going to do the same for the `final_holdout_test` data set that will be used for testing, because our observations and models must be based on the test set alone.  
+
+Our aim is to get a bird's eye view of what our data are and what are their characteristics.
+
+
+## Checking the data contained in the variables
+
+### Users
+
+```{r count_users_movies, echo=FALSE}
+  
+unique_user_count <- length(unique(edx$userId))
+
+unique_movies_count <- length(unique(edx$movieId))
+
+```
+
+In the `edx` data set there are `r unique_user_count` unique users and `r unique_movies_count` unique movies.
+
+
+#### Not all users are equal
+
+In the data set we see that not all users give a lot of ratings.  Some of them are more active (give more ratings) than others.  
+
+And, as a matter of fact, even the most active Users did not rate the most rated movies.
+
+To illustrate this, let's plot a matrix that shows the ratings given to most rated movies by the most active users:
+
+```{r matrix1,fig.cap="Number of ratings given to most rated Movies by most active users",warning=FALSE}
+
+suppressPackageStartupMessages(library(dplyr)) # data manipulation functions
+suppressPackageStartupMessages(library(ggplot2)) # used for creating plots and charts
+suppressPackageStartupMessages(library(tidyr)) # data manipulation (reshaping and 
+                                               # transforming data) to tidy format
+library(RColorBrewer) # color palette for charts
+
+top_number <- 100 # how many users and movies to take into account
+# Calculate the total number of ratings given by each user
+user_ratings_count <- edx |>
+  group_by(userId) |>
+  summarise(total_ratings = n()) |>
+  arrange(desc(total_ratings))
+
+# Calculate the total number of ratings given to each movie
+movie_ratings_count <- edx |>
+  group_by(movieId) |>
+  summarise(total_ratings = n()) |>
+  arrange(desc(total_ratings))
+
+# Select the first "top_number" users with the most ratings
+top_users <- user_ratings_count |>
+  slice(1:top_number) |>
+  pull(userId)
+
+# get the movieIds of the first "top_number" movies 
+# (movies that were rated the most)
+most_rated_movies <-  movie_ratings_count |>
+  slice(1:top_number) |>
+  pull(movieId)
+
+# Filter the ratings data set to include only ratings from the selected users
+ratings_subset <- edx |>
+  filter(userId %in% top_users & movieId %in% most_rated_movies)
+
+# Pivot the data to wide format
+ratings_matrix <- ratings_subset |>
+  select(userId, title, rating) |>
+  pivot_wider(names_from = title, values_from = rating, values_fill = NA)
+
+# Convert data to long format
+long_data <- pivot_longer(ratings_matrix, 
+                          cols = -userId, 
+                          names_to = "Item", 
+                          values_to = "Rating")
+
+# Plotting
+ggplot(long_data, aes(x = Item, y = factor(userId), fill = Rating)) + 
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = RColorBrewer::brewer.pal(3, "Blues")) + 
+  labs(
+    title = "User Ratings for most rated Movies by most active Users",
+    x = paste0("Users (",top_number," most active users)"),
+    y = paste0("Movie (",top_number," most rated movies)"),
+    fill = "Rating"
+  ) +
+  theme_classic() +
+  theme(axis.text.y = element_text(size = 5)) + # make the font of the y-axis 
+                                                # values smaller
+  #theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(axis.text.x = element_blank()) + # Hide x-axis labels
+  coord_fixed()
+
+```
+
+<div style="page-break-before: always;"></div>
+
+The grey areas represent ratings that were not given for that particular movie from that particular user.  These are the ratings we will try to predict.  
+
+We notice that even the `r top_number` most rated movies of all times, were not rated by the `r top_number` most active users.  This means that we have a lot of missing (NA) ratings for the pair user/movie.
+
+#### Ratings given by least active Users
+
+This becomes even more evident when we see that the least active users did rate even less times the most rated movies.
+
+```{r matrix2,warning=FALSE}
+
+#Count the total number of rows in the tibble
+total_rows <- nrow(user_ratings_count)
+
+# Select the X users with the least ratings
+least_active_users <- user_ratings_count |>
+  slice((total_rows - top_number):total_rows) |>
+  pull(userId)
+
+# Filter the ratings dataset to include only ratings from the selected users
+ratings_subset <- edx |>
+  filter(userId %in% least_active_users & movieId %in% most_rated_movies)
+
+# Pivot the data to wide format
+ratings_matrix <- ratings_subset |>
+  select(userId, title, rating) |>
+  pivot_wider(names_from = title, values_from = rating, values_fill = NA)
+
+# Convert data to long format
+long_data <- pivot_longer(ratings_matrix, 
+                          cols = -userId, 
+                          names_to = "Item", 
+                          values_to = "Rating")
+
+```
+
+```{r fig.cap="User Ratings given to the most rated Movies by least active Users",warning=FALSE}
+
+# Plotting
+ggplot(long_data, aes(x = Item, y = factor(userId), fill = Rating)) + 
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = RColorBrewer::brewer.pal(3, "Blues")) + 
+  labs(
+    title = "Ratings given to most rated Movies by least active Users",
+    x = paste0("Users (",top_number," least active users)"),
+    y = paste0("Movie (",top_number," most rated movies)"),
+    fill = "Rating"
+  ) +
+  theme_classic() +
+  #theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(axis.text.y = element_text(size = 5)) +
+  theme(axis.text.x = element_blank()) + # Hide x-axis labels
+  coord_fixed()
+
+```
+
+A lot of NA (grey) values here. Users that do not give a lot of ratings, are harder to estimate their preferences with accuracy.
+
+
+#### Distribution of Users' ratings
+
+Let's see the distribution of the ratings of the users.
+
+```{r mean_rating_per_user_calculation,warning=FALSE}
+
+# aggregate ratings by user
+user_ratings <- edx |>
+  group_by(userId) |>
+  summarise(mean_rating = mean(rating))
+```
+
+```{r mean_rating_per_user_plot,fig.cap="Distribution of ratings of Users",warning=FALSE}
+# plot the results
+ggplot(user_ratings, aes(x = mean_rating)) +
+  geom_histogram(binwidth = 0.5, 
+                 fill = RColorBrewer::brewer.pal(10, "Set3")[5],  
+                 color = "black") +
+  labs(title = "Distribution of User Ratings",
+       x = "Mean Rating",
+       y = "Frequency") +
+  scale_x_continuous(breaks = seq(min_rating, max_rating, by = 0.5)) + 
+  #scale_y_log10() + # Add log scale on y-axis
+  theme_classic()
+
+```
+We notice that ratings skew towards the higher end of the scale.
+
+
+### Movies
+
+#### Average rating
+
+We notice that the average rating of the `edx` dataset is `r mean(edx$rating)`.
+
+The table below shows a breakdown of how many ratings were given in total:
+
+```{r ratings_table,warning=FALSE,results='Counting of ratings'}
+
+library(kableExtra) # used for styling the kable tables
+
+total_number_of_ratings <- edx |> 
+  filter(!is.na(rating)) |>
+  nrow()
+
+ratings_table <- edx |> group_by(rating) |>
+  summarize(count = n()) 
+
+ratings_table <- ratings_table |> 
+  mutate(percentage = count / total_number_of_ratings)
+  
+colnames(ratings_table) <- c("Rating", "Number of ratings", "Percentage")
+
+show_kable_table(ratings_table)
+
+```
+
+<div style="page-break-before: always;"></div>
+
+#### Average movie rating distribution
+
+The plot below confirms our previous finding.  Most movies got a rating between 3 and 4: 
+
+```{r distribution3_calculation,warning=FALSE}
+
+# Aggregating ratings by movieId and calculating count of ratings for each movie
+movie_ratings <- edx |>
+  group_by(movieId) |>
+  summarise(avg_rating = mean(rating),
+            rating_count = n())
+
+# Sorting movies by rating count (optional)
+movie_ratings <- movie_ratings |>
+  arrange(desc(rating_count))
+```
+
+```{r distribution3_plot,fig.cap="Distribution of Movie ratings",warning=FALSE}
+
+# Plotting the distribution of ratings for movies
+ggplot(movie_ratings, aes(x = avg_rating)) +
+  geom_histogram(binwidth = 0.1, 
+                 fill = RColorBrewer::brewer.pal(10, "Set3")[5], 
+                 color = "black") +
+  labs(title = "Distribution of Movie ratings by movieId",
+       x = "Average Rating",
+       y = "Number of Movies") +
+  theme_classic()
+
+```
+
+<div style="page-break-before: always;"></div>
+
+### Ratings
+
+#### Ratings are in increments of 0.5 but whole numbers are preferred
+
+
+Ratings are made on a 5-star scale, with half-star increments and vary from 0.5 to 5.  
+
+The plot below shows a histogram of the various ratings given by users to movies:
+
+```{r examine_range_of_ratings, echo=FALSE, warning=FALSE}
+
+ratings <- edx |> group_by(rating) |> summarize(count = n()) |> pull(rating)
+
+min_rating <- ratings[1]
+max_rating <- ratings[length(ratings)]
+rating_range <- seq(min_rating, max_rating, 0.5)
+
+saveRDS(rating_range, file = paste0(path_of_files, "objects/rating_range.rds"))
+
+```
+
+
+```{r plots6,fig.cap="Ratings of the train (edx) data set",warning=FALSE}
+library(ggplot2) # used for creating plots and charts
+
+# Create histogram 
+binwidth <- 0.5
+edx |> ggplot(aes(x = rating)) +
+  geom_histogram(binwidth = binwidth, 
+                 fill = RColorBrewer::brewer.pal(10, "Set3")[5], 
+                 color = "black", 
+                 alpha = 0.8, 
+                 center = TRUE) +
+  labs(title = "Ratings of the train (edx) data set", x = "Ratings", y = "Count") +
+  scale_x_continuous(breaks = seq(min_rating, max_rating, by = 0.5)) + 
+  theme_classic()
+  
+```
+
+<div style="page-break-before: always;"></div>
+
+The histogram below shows that most movies did not get more than 8000 ratings and very few of them have more than 25000 ratings:
+
+```{r ratings_per_movie_data1,warning=FALSE,results="Ratings per movie"}
+
+ratings_per_movie <- edx |>
+  group_by(movieId) |>
+  summarise(total_ratings = n()) |>
+  arrange(desc(total_ratings)) |> # Sort by total ratings in ascending order
+  top_n(1000)
+
+```
+
+```{r ratingspermovieplot1,fig.cap='Total number of Ratings per Movie',warning=FALSE}
+
+# Plotting
+binwidth <- 200
+ggplot(ratings_per_movie, aes(x = total_ratings)) +
+  geom_histogram(binwidth = binwidth, 
+                 fill = RColorBrewer::brewer.pal(10, "Set3")[5], 
+                 color = "black") +
+  labs(
+    title = "Total Number of Ratings per Movie",
+    x = "Total Ratings",
+    y = "Number of Movies (log 10 scale)"
+  ) +
+  #xlim(NA, 30000) +
+  #scale_x_log10() + # Add log scale on x-axis
+  scale_x_continuous(breaks = seq(0, 
+                                  max(as.numeric(ratings_per_movie$total_ratings)), 
+                                  by = binwidth * 20)) + 
+  scale_y_log10() + # Add log scale on y-axis
+  theme_classic()
+
+```

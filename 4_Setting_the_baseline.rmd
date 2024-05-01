@@ -1,0 +1,225 @@
+# Setting the baseline
+
+
+```{r load_common_objects_4,echo=FALSE}
+  
+ source("common.R")
+
+```
+
+## This Project's goal
+
+Before starting our quest we need to set some baseline for the evaluation of the performance of our models.  There is already a minimum threshold that defines the success of the project: achieving a RSME under **0.8649**.  
+
+In this section we will add to this minimum threshold some additional thresholds.  One can argue that these additional thresholds are also models for solving the problem, but we prefer to think of them as prediction metrics when no intelligence (or very little intelligence) is used.
+
+```{r examine_range_of_ratings_4,echo=FALSE,warning=FALSE}
+options(tinytex.verbose = TRUE)
+
+suppressPackageStartupMessages(library(dplyr)) # data manipulation functions
+
+ratings <- edx |> 
+  group_by(rating) |> 
+  summarize(count = n()) |> 
+  pull(rating)
+
+min_rating <- ratings[1]
+max_rating <- ratings[length(ratings)]
+rating_range <- seq(min_rating, max_rating, 0.5)
+
+```
+  
+## Guessing the rating
+
+The code below will guess the rating with two ways: without bias (simple guessing) and with bias (guessing based on the prevalence each ratings has - which means that ratings that have a higher prevalance (e.g. the rating 3) will be chosen more often than ratings with lower prevalence (like 0.5)).
+
+We start with unbiased guessing.
+
+```{r algos1,warning=FALSE,echo=TRUE}
+
+suppressPackageStartupMessages(library(kableExtra)) # used for styling the kable tables
+
+set.seed(2024)
+
+# make random guessing of the rating a user may give to a movie
+B <- nrow(final_holdout_test) 
+random_predictions_based_on_absolute_guessing <- data.frame(random_rating = 
+                                                            replicate(B, 
+                                                            sample(rating_range, 
+                                                                   size = 1, 
+                                                                   replace = TRUE)))
+
+# Construct a table that will hold the results of the various models
+results_overview_table <- 
+    tibble(Model = c("Objective of the Project is RMSE < 0.8649", 
+                     "Random guessing"),
+                     RMSE = c(minimum_RMSE, 
+                              RMSE(final_holdout_test$rating,
+                              random_predictions_based_on_absolute_guessing$random_rating)
+                             )
+           )
+
+# inspect results so far
+show_kable_table(results_overview_table)
+
+```
+
+<div style="page-break-before: always;"></div>
+
+So far we just made totally random guesses regarding ratings. As we expected, just guessing movie ratings, does not produce great RMSE.
+
+Below we will try to guess again but this time we will use the prevalence each rating has in our `edx` data set.  This is based on the visualization we saw in the previous Chapter (see "Ratings of the train (edx) data set") that not each rating has the same probability of being selected.  For example, a rating between 3 and 4 is more common (has more probabilities to be selected) than a rating of 0.5 or 1.
+
+```{r random_guesses,warning=FALSE,echo=TRUE}
+
+library(kableExtra) # used for styling the kable tables
+
+how_many_movies_do_not_have_rating <- edx |> 
+  filter(!edx$rating %in% ratings) |> 
+  count()
+
+if (how_many_movies_do_not_have_rating != 0) {
+  print("There are movies that do not have a rating!")
+  
+} else {
+  #print("All movies have ratings")
+  total_ratings <- nrow(edx) # how many ratings we have?
+  
+  # calculate the prevelance of each rating (0.5, 1, 2, ..., 5)
+  prevelance <- edx |>
+    group_by(rating) |> 
+    summarize(count = n(), prevelance = n() / total_ratings) |> 
+    pull(prevelance)
+  
+  # guess in random again but this time, use as the probability to select 
+  # a rating, according to the prevalence of this rating in the edx data set
+  random_predictions_based_on_biased_guessing <- 
+    data.frame(random_biased_rating = replicate(B, sample(rating_range, 
+                                        size = 1, 
+                                        replace = TRUE, 
+                                        prob = prevelance)))
+
+  # add the result to our comparison table
+  results_overview_table <- bind_rows(results_overview_table, 
+                                      tibble(Model = "Random guessing (biased)",
+                                             RMSE = RMSE(final_holdout_test$rating,                                                   random_predictions_based_on_biased_guessing$random_biased_rating)))
+
+  }
+
+# inspect results so far
+show_kable_table(results_overview_table)
+
+```
+<div style="page-break-before: always;"></div>
+
+Although with this last try the RMSE was improved, in general, guessing in random did not produce reliable predictions.  This was to be expected as all these predictions are not intelligent and they are just useful in setting a baseline.  For example, if we come up with a model that performs worse than what we can perform by guessing then we will know for sure that our model is no good.
+
+
+## Simple model based on average rating
+
+We will now apply our knowledge from the Data Science course to calculate the mean rating, then add the movie effect and then the user effect when predicting.  
+
+Below we assume that any user will give the mean rating (`mu`) to any movie and we calculate the RMSE of these "predictions".
+
+```{r mean_rating_everywhere,warning=FALSE,echo=TRUE}
+
+# Start with the mean rating of all movies from all users
+mu <- mean(edx$rating) # mean rating independently from movie and user bias
+
+# create as many predictions as the rows of the final_holdout_test
+y_hat_mean <- rep(mu, nrow(final_holdout_test))
+
+# calculate the RMSE according to this method
+results_overview_table <- bind_rows(results_overview_table, 
+                                    tibble(Model = "Give mean rating to all movies",
+                                           RMSE = 
+                                             RMSE(final_holdout_test$rating, 
+                                                  y_hat_mean)))
+
+# inspect results so far
+show_kable_table(results_overview_table)
+
+```
+
+Results improved a little, but we still have work to do.
+
+Now we will add the movie effect (`b_i`) and see if our RMSE improves.  The movie effect compensates for the fact that some movies are rated higher and some other movies are rated lower than the average rating. The code below is based partially on the previous code of the course.
+
+```{r mea_rating_everywhere,warning=FALSE,echo=TRUE}
+
+# estimate the movie bias which is the mean rating per movie 
+# minus the mean rating of all movies
+b_i <- edx |>
+  group_by(movieId) |> 
+  summarize(b_i = mean(rating - mu)) 
+# get ratings of each movie and subtract the mean rating
+
+b_i # Movie bias
+
+```
+
+As we can see the movie bias is different for each movie. Some movies will take a lower rating and some a higher rating than the average rating (`mu`) when the movie bias will be incorporated in our model.  We will do this now.
+
+```{r movei_bias,warning=FALSE,echo=TRUE}
+
+# calculate the rating based on the mean rating and the movie effect 
+y_hat_b_i <- final_holdout_test |>
+  left_join(b_i, by = "movieId") |>
+  mutate(b_i = b_i + mu) |> pull(b_i)
+
+# inspect the results
+head(y_hat_b_i)
+
+# calculate the RMSE of the movie bieas and add it to our comparison table
+results_overview_table <- bind_rows(results_overview_table, 
+                                    tibble(Model = "Mean rating + movie bias",
+                                           RMSE = RMSE(final_holdout_test$rating, 
+                                                       y_hat_b_i)))
+
+# inspect results so far
+show_kable_table(results_overview_table)
+
+```
+
+The movie effect improved  a little the RMSE of our predictions
+
+We will proceed further to add in our mix the user effect (`b_u`).  The user effect is based on the fact that some users are give mostly lower ratings (e.g. 1 and 2) while other users give mostly higher ratings (e.g. 4 and 5).
+
+```{r adding_the_user_effect, warning=FALSE,echo=TRUE}
+
+# calculate the bias a user has when it rates a movie
+b_u <- edx |>
+  left_join(b_i, by = 'movieId') |>
+  group_by(userId) |> 
+  summarize(b_u = mean(rating - mu - b_i))  # note here that we subtract not only 
+                                            # the mu but also the b_i
+b_u # User bias
+
+# calculate the y_hat for the user effect + the movie effect
+y_hat_b_u <- final_holdout_test |>
+  left_join(b_i, by='movieId') |>
+  left_join(b_u, by='userId') |>
+  mutate(y_hat = mu + b_i + b_u) |>
+  pull(y_hat)
+
+# show the results
+head(y_hat_b_u)
+
+# add the RMSE of this model to our comparison table
+results_overview_table <- bind_rows(results_overview_table, 
+                                    tibble(Model="Mean rating + movie bias + user bias",
+                                           RMSE = RMSE(final_holdout_test$rating, 
+                                                       y_hat_b_u)))
+
+# inspect results so far
+show_kable_table(results_overview_table)
+
+# save the results table for later use
+saveRDS(results_overview_table, file = paste0(path_of_files, 
+                                              "results/results_overview_table.rds"))
+
+```
+
+Clearly, the mean rating, the movie effect and the user effect play an important role when a user chooses a rating for a movie because our RMSE, in this last try, is the best RMSE we managed to reach so far.  
+
+In the next Chapter we will recruit some Machine Learning algorithms in our effort to find alternative ways of improving the accuracy of our predictions.
